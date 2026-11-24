@@ -58,7 +58,7 @@ function extractSsrObj(html: string): string {
 function parseJsLiteral(src: string): any {
   let i = 0;
   const ws = () => {
-    while (i < src.length && /\s/.test(src[i])) i++;
+    while (i < src.length && /\s/.test(src[i]!)) i++;
   };
   const parseString = (quote: string) => {
     let out = '';
@@ -75,7 +75,7 @@ function parseJsLiteral(src: string): any {
         out += String.fromCharCode(parseInt(hex, 16));
         i += 4;
       } else {
-        out += ({ n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '"': '"', "'": "'", '\\': '\\', '/': '/' } as Record<string, string>)[ch] ?? ch;
+        out += ({ n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '"': '"', "'": "'", '\\': '\\', '/': '/' } as Record<string, string>)[ch ?? ""] ?? ch;
       }
     }
     i++;
@@ -83,7 +83,7 @@ function parseJsLiteral(src: string): any {
   };
   const parseKey = () => {
     ws();
-    if (src[i] === '"' || src[i] === "'") return parseString(src[i]);
+    if (src[i] === '"' || src[i] === "'") return parseString(src[i]!);
     const m = src.slice(i).match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/);
     if (!m) throw new Error(`Bad key at pos ${i}`);
     i += m[0].length;
@@ -153,7 +153,7 @@ function parseWasmDecrypt(wasmBytes: Uint8Array) {
     const secId = b[pos++];
     let sz = 0, sh = 0, by = 0;
     do {
-      by = b[pos++];
+      by = b[pos++] ?? 0;
       sz |= (by & 127) << sh;
       sh += 7;
     } while (by & 128);
@@ -161,7 +161,7 @@ function parseWasmDecrypt(wasmBytes: Uint8Array) {
       pos++;
       let sbs = 0, sh2 = 0, by2 = 0;
       do {
-        by2 = b[pos++];
+        by2 = b[pos++] ?? 0;
         sbs |= (by2 & 127) << sh2;
         sh2 += 7;
       } while (by2 & 128);
@@ -172,7 +172,7 @@ function parseWasmDecrypt(wasmBytes: Uint8Array) {
   }
   let rbs = 0, sh3 = 0, by3 = 0;
   do {
-    by3 = b[pos++];
+    by3 = b[pos++] ?? 0;
     rbs |= (by3 & 127) << sh3;
     sh3 += 7;
   } while (by3 & 128);
@@ -180,7 +180,7 @@ function parseWasmDecrypt(wasmBytes: Uint8Array) {
   const leb = (arr: Uint8Array, idx: number): [number, number] => {
     let v = 0, s = 0, byte = 0;
     do {
-      byte = arr[idx++];
+      byte = arr[idx++] ?? 0;
       v |= (byte & 127) << s;
       s += 7;
     } while (byte & 128);
@@ -291,7 +291,7 @@ async function runWasmDecrypt(wasmBytes: Uint8Array, frag1: Uint8Array, kf2: Uin
     const { step, transform } = parseWasmDecrypt(wasmBytes);
     const key = new Uint8Array(frag1.length);
     for (let i = 0; i < frag1.length; i++) {
-      const c = (frag1[i] ^ kf2[i] ^ tokenBytes[i]) & 255;
+      const c = (frag1[i]! ^ kf2[i]! ^ tokenBytes[i]!) & 255;
       key[i] = (transform(c) ^ ((i * step + seedInt) & 255)) & 255;
     }
     return { key, playlistKey: null };
@@ -334,7 +334,7 @@ export async function decryptFlixCloudEmbed(
   const wasmResult = await runWasmDecrypt(wasmPayload, frag1, kf2, tokenBytes, seedInt);
   const keyMaterial = await crypto.subtle.importKey("raw", wasmResult.key, { name: "PBKDF2" }, false, ["deriveBits"]);
   const derived = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", salt: enc.encode(seed), iterations: 1000, hash: "SHA-256" }, keyMaterial, 256));
-  for (let i = 0; i < 32; i++) derived[i] ^= seed.charCodeAt(i % seed.length);
+  for (let i = 0; i < 32; i++) derived[i] = derived[i]! ^ seed.charCodeAt(i % seed.length);
   const aesKeyBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", derived));
   const aesKey = await crypto.subtle.importKey("raw", aesKeyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
   const plain = await crypto.subtle.decrypt({ name: "AES-CBC", iv }, aesKey, encryptedVideo);
