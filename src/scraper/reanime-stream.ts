@@ -179,7 +179,7 @@ function parseHlsAttributes(line: string): Record<string, string> {
 }
 
 export function parseHlsMaster(master: string, masterUrl: string) {
-  const lines = master.split(/\\r?\\n/);
+  const lines = master.split(/\r?\n/);
   const qualities: ReAnimeStream["qualities"] = [];
   const subtitles: ReAnimeStream["subtitles"] = [];
   const audioTracks: ReAnimeStream["audioTracks"] = [];
@@ -234,7 +234,7 @@ export function rewriteHlsPlaylist(
     ensureAllowedStreamUrl(target.toString());
     return `${proxyBase}?url=${encodeURIComponent(target.toString())}&ref=${encodeURIComponent(referer)}${playlistKey ? `&pk=${encodeURIComponent(playlistKey)}` : ""}`;
   };
-  return body.split(/\\r?\\n/).map((line) => {
+  return body.split(/\r?\n/).map((line) => {
     const trimmed = line.trim();
     if (!trimmed) return line;
     if (trimmed.startsWith("#") && trimmed.includes("URI=")) {
@@ -242,5 +242,5 @@ export function rewriteHlsPlaylist(
     }
     if (trimmed.startsWith("#")) return line;
     return proxy(trimmed);
-  }).join("\\n");
+  }).join("\n");
 }
