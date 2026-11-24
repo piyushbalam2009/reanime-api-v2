@@ -52,6 +52,12 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding-top:20px;color:v
   ]
 }</pre><p class="muted">Episode title and thumbnail are optional and are omitted when the source page does not expose them. This endpoint returns the source site's episode links; it does not claim that every episode has a playable server.</p></div>
 </section>
+<section><h2>ReAnime streaming</h2>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/anime/{id}/episodes/{episode}/servers?type=all</span></div><p>Fetches ReAnime's episode server links and returns the available sub/dub FlixCloud embed servers.</p><pre>curl "http://localhost:4000/api/v1/anime/ANIME_ID/episodes/1/servers?type=sub"</pre></div>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/stream/reanime/{sourceId}</span></div><p>Resolve a server's sourceId. This fetches the FlixCloud embed and runs its token/WASM decryption flow to obtain the HLS playlist, playlist key, subtitles, audio tracks, and quality variants when available.</p><pre>curl "http://localhost:4000/api/v1/stream/reanime/SOURCE_ID"</pre></div>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/proxy/hls?url={m3u8}&amp;ref={referer}&amp;pk={playlistKey}</span></div><p>Proxies HLS playlists and segments. Variant playlists, key/map URI attributes, and media segment links are rewritten through the API proxy. The proxy only accepts HTTPS URLs from the configured ReAnime/FlixCloud stream host allowlist.</p></div>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/proxy/subtitle?url={subtitleUrl}&amp;ref={referer}</span></div><p>Proxies subtitle text with CORS headers for browser playback.</p></div>
+<p class="muted">Start with an anime ID returned by search, obtain a server sourceId for an episode, then resolve that sourceId. Direct-playlist extraction depends on FlixCloud's current embed protocol and can fail if the provider changes its obfuscation or CDN hosts.</p></section>
 <section><h2>Response format</h2><div class="grid"><div class="card"><h3>Successful response</h3><pre>{ "success": true, "data": … }</pre></div><div class="card"><h3>Error response</h3><pre>{
   "success": false,
   "error": {
