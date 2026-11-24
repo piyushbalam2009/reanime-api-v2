@@ -57,7 +57,7 @@ export class ReAnimeScraper {
         env.REANIME_BASE_URL
       );
       const title = clean(
-        anchor.find("h1,h2,h3,h4,[class*="anime-title"],[class*="title"]').first().text()
+        anchor.find('h1,h2,h3,h4,[class*="anime-title"],[class*="title"]').first().text()
         || imageElement.attr("alt")
         || anchor.attr("title")
       );
