@@ -204,7 +204,7 @@ export function parseHlsMaster(master: string, masterUrl: string) {
       const attrs = parseHlsAttributes(line);
       const uri = lines.slice(i + 1).find((candidate) => candidate.trim() && !candidate.trim().startsWith("#"))?.trim();
       if (!uri) continue;
-      const height = attrs.RESOLUTION?.match(/x(\\d+)$/)?.[1];
+      const height = attrs.RESOLUTION?.match(/x(\d+)$/)?.[1];
       const bandwidth = attrs.BANDWIDTH ? Number(attrs.BANDWIDTH) : undefined;
       qualities.push({
         label: height ? `${height}p` : bandwidth ? `${Math.round(bandwidth / 1000)}kbps` : "Auto",
