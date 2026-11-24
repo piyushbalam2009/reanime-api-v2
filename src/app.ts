@@ -10,7 +10,14 @@ import { createRoutes } from "./routes.js";
 export function createApp(service = new ScraperService()) {
   const app = express();
   app.disable("x-powered-by");
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"]
+      }
+    }
+  }));
   app.use(cors());
   app.use(express.json({ limit: "100kb" }));
 
