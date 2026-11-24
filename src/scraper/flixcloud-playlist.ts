@@ -1,4 +1,4 @@
-function decodeFlixPlaylist(text: string, playlistKey?: string | null): string {
+export function decodeFlixPlaylist(text: string, playlistKey?: string | null): string {
   if (text.trim().startsWith('#EXTM3U') || !playlistKey) return text;
   try {
     const key = Buffer.from(playlistKey, 'base64');
@@ -71,4 +71,3 @@ async function decryptEmbed(html: string) {
     outro_chapter: data.outro_chapter ?? null,
   };
 }
-
