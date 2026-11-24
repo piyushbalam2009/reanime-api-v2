@@ -9,7 +9,7 @@ const REANIME_HOST = "reanime.cz";
 // ReAnime catalog slugs sometimes append the episode count (e.g. -100).
 // The watch API expects the canonical slug without that trailing count.
 export function canonicalReAnimeSlug(value: string): string {
-  return value.trim().replace(/-\\d+$/, "");
+  return value.trim().replace(/-\d+$/, "");
 }
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
