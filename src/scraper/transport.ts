@@ -1,26 +1,15 @@
 import { load } from "cheerio";
-import { BrowserClient } from "./browser-client.js";
 import { HttpClient } from "./http-client.js";
 
-export class HybridTransport {
-  constructor(
-    private readonly http = new HttpClient(),
-    private readonly browser = new BrowserClient()
-  ) {}
+/** Fetch HTML over HTTP and parse it with Cheerio. No browser fallback. */
+export class HttpTransport {
+  constructor(private readonly http = new HttpClient()) {}
 
-  async html(url: string, options: { browser?: boolean } = {}) {
-    if (options.browser) {
-      return load(await this.browser.render(url));
-    }
-    try {
-      return load(await this.http.getText(url));
-    } catch (error) {
-      // Browser fallback is deliberately limited to fetch/parse failures.
-      // It does not attempt to defeat authentication, bot checks, or access restrictions.
-      if (error instanceof Error && /HTTP 4\d\d/.test(error.message)) throw error;
-      return load(await this.browser.render(url));
-    }
+  async html(url: string) {
+    return load(await this.http.getText(url));
   }
 
-  async close(): Promise<void> { await this.browser.close(); }
+  async close(): Promise<void> {
+    // Lifecycle hook retained for graceful service shutdown.
+  }
 }
