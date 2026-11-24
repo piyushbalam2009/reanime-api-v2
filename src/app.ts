@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { fileURLToPath } from "node:url";
 import { ScraperService } from "./services/scraper.service.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
 import { logger } from "./utils/logger.js";
@@ -13,7 +14,13 @@ export function createApp(service = new ScraperService()) {
   app.use(cors());
   app.use(express.json({ limit: "100kb" }));
 
-  // Lightweight request logging avoids pino-http CJS/ESM typing differences.
+  const publicDirectory = fileURLToPath(new URL("../public", import.meta.url));
+  app.use(express.static(publicDirectory));
+
+  app.get("/", (_req, res) => res.redirect("/docs"));
+  app.get("/docs", (_req, res) => res.sendFile(fileURLToPath(new URL("../public/docs.html", import.meta.url))));
+  app.get("/playground", (_req, res) => res.sendFile(fileURLToPath(new URL("../public/playground.html", import.meta.url))));
+
   app.use((req, res, next) => {
     const startedAt = Date.now();
     res.on("finish", () => {
