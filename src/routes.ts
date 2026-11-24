@@ -80,7 +80,7 @@ export function createRoutes(service: ScraperService): Router {
       const stream = await resolver.resolve(req.params.sourceId);
       const base = publicBase(req);
       const hlsProxyUrl = stream.m3u8
-        ? `${base}/api/v1/proxy/hls?url=${encodeURIComponent(stream.m3u8)}&ref=${encodeURIComponent(stream.referer)}`
+        ? `${base}/api/v1/proxy/hls?url=${encodeURIComponent(stream.m3u8)}&ref=${encodeURIComponent(stream.referer)}${stream.playlistKey ? `&pk=${encodeURIComponent(stream.playlistKey)}` : ""}`
         : null;
       return res.json({
         success: true,
@@ -89,11 +89,11 @@ export function createRoutes(service: ScraperService): Router {
           hlsProxyUrl,
           qualities: stream.qualities.map((quality) => ({
             ...quality,
-            hlsProxyUrl: `${base}/api/v1/proxy/hls?url=${encodeURIComponent(quality.url)}&ref=${encodeURIComponent(stream.referer)}`
+            hlsProxyUrl: `${base}/api/v1/proxy/hls?url=${encodeURIComponent(quality.url)}&ref=${encodeURIComponent(stream.referer)}${stream.playlistKey ? `&pk=${encodeURIComponent(stream.playlistKey)}` : ""}`
           })),
           audioTracks: stream.audioTracks.map((track) => ({
             ...track,
-            ...(track.url ? { hlsProxyUrl: `${base}/api/v1/proxy/hls?url=${encodeURIComponent(track.url)}&ref=${encodeURIComponent(stream.referer)}` } : {})
+            ...(track.url ? { hlsProxyUrl: `${base}/api/v1/proxy/hls?url=${encodeURIComponent(track.url)}&ref=${encodeURIComponent(stream.referer)}${stream.playlistKey ? `&pk=${encodeURIComponent(stream.playlistKey)}` : ""}` } : {})
           })),
           subtitles: stream.subtitles.map((track) => ({
             ...track,
