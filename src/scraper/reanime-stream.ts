@@ -5,6 +5,12 @@ import { decodeFlixPlaylist } from "./flixcloud-playlist.js";
 
 const FLIX_HOSTS = new Set(["flixcloud.cc", "www.flixcloud.cc"]);
 const REANIME_HOST = "reanime.cz";
+
+// ReAnime catalog slugs sometimes append the episode count (e.g. -100).
+// The watch API expects the canonical slug without that trailing count.
+export function canonicalReAnimeSlug(value: string): string {
+  return value.trim().replace(/-\\d+$/, "");
+}
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 function ensureAllowedUrl(raw: string, allowedHosts: Set<string>): URL {
@@ -88,8 +94,9 @@ export class ReAnimeStreamResolver {
 
   async servers(animeId: string, episode: number): Promise<ReAnimeServer[]> {
     if (!Number.isSafeInteger(episode) || episode < 1) throw new Error("Episode must be a positive integer");
-    const url = `https://${REANIME_HOST}/api/watch/${encodeURIComponent(animeId)}/${episode}`;
-    const data = await this.http.getJson<any>(url, { referer: `https://${REANIME_HOST}/watch/${encodeURIComponent(animeId)}?ep=${episode}` });
+    const canonicalId = canonicalReAnimeSlug(animeId);
+    const url = `https://${REANIME_HOST}/api/watch/${encodeURIComponent(canonicalId)}/${episode}`;
+    const data = await this.http.getJson<any>(url, { referer: `https://${REANIME_HOST}/watch/${encodeURIComponent(canonicalId)}?ep=${episode}` });
     const links = decodeJsonEnvelope(data?.episode_links ?? data);
     const servers = links.map((link): ReAnimeServer | null => {
       const type = linkType(link?.dataType ?? link?.type);
@@ -98,7 +105,7 @@ export class ReAnimeStreamResolver {
       try { ensureAllowedUrl(embedUrl, FLIX_HOSTS); } catch { return null; }
       const name = String(link.serverName || (type === "sub" ? "SUB" : "DUB"));
       if (name === "HD-1") return null;
-      return { name, type, embedUrl, sourceId: encodeSource({ animeId, episode, serverName: name, dataType: String(link.dataType || type), embedUrl }) };
+      return { name, type, embedUrl, sourceId: encodeSource({ animeId: canonicalId, episode, serverName: name, dataType: String(link.dataType || type), embedUrl }) };
     }).filter((item): item is ReAnimeServer => Boolean(item));
     return unique(servers, (item) => item.sourceId).sort((a, b) => (a.name === "HD-2" ? -1 : b.name === "HD-2" ? 1 : 0));
   }
