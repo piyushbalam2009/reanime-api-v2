@@ -1,0 +1,43 @@
+{
+  "name": "reanime-api-v2",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Standalone hybrid HTTP and browser-powered ReAnime scraper with REST API, TypeScript SDK, and CLI.",
+  "type": "module",
+  "engines": { "node": ">=20.11.0" },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "cli": "tsx src/cli/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "commander": "^13.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.10",
+    "@types/supertest": "^6.0.2",
+    "playwright": "^1.51.1",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  },
+  "exports": {
+    ".": "./dist/sdk/index.js"
+  },
+  "bin": { "reanime": "./dist/cli/index.js" }
+}
