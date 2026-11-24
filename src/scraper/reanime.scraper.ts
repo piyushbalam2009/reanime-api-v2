@@ -36,16 +36,16 @@ export class ReAnimeScraper {
   }
 
   async search(query: string): Promise<AnimeSummary[]> {
-    const url = this.url(\`/?s=\${encodeURIComponent(query)}\`);
+    const url = this.url("/?s=" + encodeURIComponent(query));
     const $ = await this.transport.html(url);
     return this.parseCards($);
   }
 
   async details(id: string): Promise<AnimeDetails> {
-    const url = this.url(\`/anime/\${encodeURIComponent(id)}\`);
+    const url = this.url("/anime/" + encodeURIComponent(id));
     const $ = await this.transport.html(url);
     const title = $("h1").first().text().trim() || $("title").text().trim();
-    if (!title) throw new Error(\`Anime not found or page structure changed: \${id}\`);
+    if (!title) throw new Error("Anime not found or page structure changed: " + id);
     const description = $('[class*="description"], [class*="synopsis"], .entry-content').first().text().trim();
     const image = absoluteUrl($("meta[property='og:image']").attr("content") || $("img").first().attr("src"), env.REANIME_BASE_URL);
     const genres = $("a[href*='genre']").map((_i, el) => $(el).text().trim()).get().filter(Boolean);
@@ -58,14 +58,14 @@ export class ReAnimeScraper {
   }
 
   async episodes(id: string): Promise<Episode[]> {
-    const url = this.url(\`/anime/\${encodeURIComponent(id)}\`);
+    const url = this.url("/anime/" + encodeURIComponent(id));
     const $ = await this.transport.html(url);
     const episodes: Episode[] = [];
     const seen = new Set<string>();
     $("a[href]").each((_i, el) => {
       const a = $(el);
       const href = a.attr("href");
-      const label = \`\${a.text()} \${a.attr("title") || ""}\`.trim();
+      const label = (a.text() + " " + (a.attr("title") || "")).trim();
       const match = label.match(/(?:episode|ep)\s*[-:#.]?\s*(\d+(?:\.\d+)?)/i)
         || href?.match(/(?:episode|ep)[-/]?(\d+(?:\.\d+)?)/i);
       if (!href || !match) return;
@@ -73,7 +73,8 @@ export class ReAnimeScraper {
       const episodeUrl = absoluteUrl(href, env.REANIME_BASE_URL);
       if (!Number.isFinite(number) || !episodeUrl || seen.has(episodeUrl)) return;
       seen.add(episodeUrl);
-      const idValue = normalizeId(new URL(episodeUrl).pathname.split("/").filter(Boolean).at(-1) || \`\${id}-\${number}\`);
+      const fallbackId = id + "-" + number;
+      const idValue = normalizeId(new URL(episodeUrl).pathname.split("/").filter(Boolean).at(-1) || fallbackId);
       const title = a.text().trim();
       episodes.push({ id: idValue, number, ...(title ? { title } : {}), url: episodeUrl });
     });
