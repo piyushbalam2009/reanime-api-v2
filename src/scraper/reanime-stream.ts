@@ -1,4 +1,7 @@
 import { HttpClient } from "./http-client.js";
+import { decryptFlixCloudEmbed } from "./flixcloud-crypto.js";
+import { decodeFlixPlaylist } from "./flixcloud-playlist.js";
+
 
 const FLIX_HOSTS = new Set(["flixcloud.cc", "www.flixcloud.cc"]);
 const REANIME_HOST = "reanime.cz";
@@ -103,109 +106,31 @@ export class ReAnimeStreamResolver {
     const payload = decodeSource(sourceId);
     const embedUrl = ensureAllowedUrl(payload.embedUrl, FLIX_HOSTS).toString();
     const html = await this.http.getText(embedUrl, { referer: `https://${REANIME_HOST}/`, accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "user-agent": UA });
-    // Accept only direct, provider-exposed HLS URLs. The encrypted SSR/WASM token exchange
-    // used by some FlixCloud embed generations needs a separate versioned implementation.
-    const candidates = [
-      ...html.matchAll(/(?:file|source|src|url)\s*[:=]\s*["'](https?:\/\/[^"']+\.m3u8(?:\?[^"']*)?)["']/gi)
-    ].map((m) => String(m[1]));
-    const direct = candidates.find((candidate) => {
-      try { const u = new URL(candidate); return u.protocol === "https:"; } catch { return false; }
-    }) || null;
-
+    const decrypted = await decryptFlixCloudEmbed(html, async (url, tokenReferer) => {
+      return this.http.getJson<any>(url, { referer: tokenReferer, accept: "application/json, */*" });
+    });
+    const direct = decrypted.url;
+    const allowedStream = ensureAllowedStreamUrl(direct);
+    const playlistKey = decrypted.playlistKey;
     let hls = { qualities: [] as ReAnimeStream["qualities"], subtitles: [] as ReAnimeStream["subtitles"], audioTracks: [] as ReAnimeStream["audioTracks"] };
-    if (direct) {
-      const playlist = await this.http.getText(direct, { referer: "https://flixcloud.cc/", accept: "*/*" });
-      if (!playlist.trimStart().startsWith("#EXTM3U")) throw new Error("FlixCloud returned an invalid HLS playlist");
-      hls = parseHlsMaster(playlist, direct);
+    const playlistText = decodeFlixPlaylist(
+      await this.http.getText(allowedStream.toString(), { referer: "https://flixcloud.cc/", accept: "*/*" }),
+      playlistKey
+    );
+    if (!playlistText.trimStart().startsWith("#EXTM3U")) throw new Error("FlixCloud returned an invalid HLS playlist");
+    hls = parseHlsMaster(playlistText, allowedStream.toString());
+    const rawTracks = Array.isArray(decrypted.subtitles) ? decrypted.subtitles : [];
+    for (const [index, track] of rawTracks.entries()) {
+      const rawTrackUrl = track?.url || track?.file || track?.src;
+      if (typeof rawTrackUrl !== "string") continue;
+      let subtitleUrl: string;
+      try { subtitleUrl = new URL(rawTrackUrl, direct).toString(); ensureAllowedStreamUrl(subtitleUrl); } catch { continue; }
+      hls.subtitles.push({
+        lang: String(track?.lang || track?.language || track?.label || track?.name || `Subtitle ${index + 1}`),
+        url: subtitleUrl,
+        default: Boolean(track?.default)
+      });
     }
-    const rawSubtitleJson = html.match(/(?:subtitles|tracks)\s*[:=]\s*(\[[\s\S]*?\])/i)?.[1];
-    if (rawSubtitleJson) {
-      try {
-        const tracks = JSON.parse(rawSubtitleJson);
-        for (const track of tracks) {
-          const url = typeof track?.url === "string" ? new URL(track.url, direct || embedUrl).toString() : "";
-          if (url && /^https:$/.test(new URL(url).protocol)) hls.subtitles.push({ lang: String(track.lang || track.label || "Subtitle"), url, default: Boolean(track.default) });
-        }
-      } catch { /* no plain subtitle JSON in this embed document */ }
-    }
-    return {
-      embedUrl, m3u8: direct, hlsProxyUrl: direct ? null : null, referer: "https://flixcloud.cc/",
-      type: direct ? "hls" : "iframe", serverName: payload.serverName, dataType: payload.dataType,
-      subtitles: unique(hls.subtitles, (item) => item.url), qualities: hls.qualities, audioTracks: hls.audioTracks,
-      playlistKey: null, intro: null, outro: null, thumbnailsVtt: null, videoTitle: null
-    };
-  }
+    const selectedAudioLang = payload.dataType === "dub" || payload.dataType === "s-dub" ? "eng"
+      : payload.dataType === "sub" || payload.dataType === "s-sub" ? "jpn" : null;
 
-  async fetchPlaylist(url: string, referer = "https://flixcloud.cc/"): Promise<string> {
-    const parsed = ensureAllowedStreamUrl(url);
-    const body = await this.http.getText(parsed.toString(), { referer, accept: "*/*" });
-    if (!body.trimStart().startsWith("#EXTM3U")) throw new Error("Upstream did not return a valid HLS playlist");
-    return body;
-  }
-
-  async fetchBinary(url: string, referer = "https://flixcloud.cc/"): Promise<Uint8Array> {
-    ensureAllowedStreamUrl(url);
-    return this.http.getBytes(url, { referer, accept: "*/*" });
-  }
-}
-
-function ensureAllowedStreamUrl(raw: string): URL {
-  const url = new URL(raw);
-  const host = url.hostname.toLowerCase();
-  if (url.protocol !== "https:" || !(host === "flixcloud.cc" || host.endsWith(".flixcloud.cc") || host === "reanime.cz" || host.endsWith(".reanime.cz") || host.endsWith(".flixcdn.com") || host.endsWith(".flixcdn.net") || host.endsWith(".cloudfront.net") || host.endsWith(".akamaized.net"))) {
-    throw new Error("HLS URL host is not allowed");
-  }
-  return url;
-}
-
-function parseHlsAttributes(line: string): Record<string, string> {
-  const attrs: Record<string, string> = {};
-  const body = line.slice(line.indexOf(":") + 1);
-  const re = /([A-Z0-9-]+)=("(?:[^"\\]|\\.)*"|[^,]*)/gi;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(body))) attrs[match[1].toUpperCase()] = match[2].replace(/^"|"$/g, "");
-  return attrs;
-}
-
-export function parseHlsMaster(master: string, masterUrl: string) {
-  const lines = master.split(/\r?\n/);
-  const qualities: ReAnimeStream["qualities"] = [];
-  const subtitles: ReAnimeStream["subtitles"] = [];
-  const audioTracks: ReAnimeStream["audioTracks"] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.startsWith("#EXT-X-MEDIA") && /TYPE=AUDIO/i.test(line)) {
-      const attrs = parseHlsAttributes(line);
-      audioTracks.push({ lang: attrs.LANGUAGE || attrs.NAME || "audio", ...(attrs.NAME ? { name: attrs.NAME } : {}), ...(attrs.URI ? { url: new URL(attrs.URI, masterUrl).toString() } : {}), default: attrs.DEFAULT?.toUpperCase() === "YES" });
-    } else if (line.startsWith("#EXT-X-MEDIA") && /TYPE=SUBTITLES/i.test(line)) {
-      const attrs = parseHlsAttributes(line);
-      if (attrs.URI) subtitles.push({ lang: attrs.LANGUAGE || attrs.NAME || "Subtitle", url: new URL(attrs.URI, masterUrl).toString(), default: attrs.DEFAULT?.toUpperCase() === "YES" });
-    } else if (line.startsWith("#EXT-X-STREAM-INF")) {
-      const attrs = parseHlsAttributes(line);
-      const uri = lines.slice(i + 1).find((candidate) => candidate.trim() && !candidate.trim().startsWith("#"))?.trim();
-      if (!uri) continue;
-      const height = attrs.RESOLUTION?.match(/x(\d+)$/)?.[1];
-      const bandwidth = attrs.BANDWIDTH ? Number(attrs.BANDWIDTH) : undefined;
-      qualities.push({ label: height ? `${height}p` : bandwidth ? `${Math.round(bandwidth / 1000)}kbps` : "Auto", url: new URL(uri, masterUrl).toString(), ...(Number.isFinite(bandwidth) ? { bandwidth } : {}), ...(attrs.RESOLUTION ? { resolution: attrs.RESOLUTION } : {}) });
-    }
-  }
-  return { qualities: unique(qualities, (item) => item.url), subtitles: unique(subtitles, (item) => item.url), audioTracks: unique(audioTracks, (item) => item.url || item.lang) };
-}
-
-export function rewriteHlsPlaylist(body: string, sourceUrl: string, proxyBase: string, referer: string): string {
-  const base = new URL(sourceUrl);
-  const proxy = (raw: string) => {
-    const target = new URL(raw, base);
-    ensureAllowedStreamUrl(target.toString());
-    return `${proxyBase}?url=${encodeURIComponent(target.toString())}&ref=${encodeURIComponent(referer)}`;
-  };
-  return body.split(/\r?\n/).map((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) return line;
-    if (trimmed.startsWith("#") && trimmed.includes("URI=")) {
-      return line.replace(/URI="([^"]+)"/g, (_m, uri: string) => `URI="${proxy(uri)}"`);
-    }
-    if (trimmed.startsWith("#")) return line;
-    return proxy(trimmed);
-  }).join("\n");
-}
