@@ -34,7 +34,7 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding-top:20px;color:v
     { "id": "anime-id", "title": "Anime title", "url": "https://…", "image": "https://…" }
   ]
 }</pre></div>
-<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/anime/{id}</span></div><p>Returns details for one anime.</p><ul><li><code>id</code> — required path parameter, 1–180 characters after trimming.</li></ul><pre>{
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/anime/{id}</span></div><p>Fetches /anime/{id} from Re:ANIME and extracts the actual title, alternate title, synopsis, poster, genres, score, format, status, episode count, season and release year when the source page provides them.</p><ul><li><code>id</code> — required path parameter, 1–180 characters after trimming.</li></ul><pre>{
   "success": true,
   "data": {
     "id": "anime-id",
@@ -45,12 +45,12 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding-top:20px;color:v
     "genres": ["Action", "Adventure"]
   }
 }</pre><p class="muted">Optional fields are omitted when the scraper cannot find them.</p></div>
-<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/anime/{id}/episodes</span></div><p>Returns the episode list for an anime, sorted by episode number.</p><ul><li><code>id</code> — required path parameter, 1–180 characters after trimming.</li></ul><pre>{
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/anime/{id}/episodes</span></div><p>Fetches the Re:ANIME /watch/{id} page, where its episode list is rendered, and extracts episode numbers, titles and watch URLs. Results are sorted by episode number.</p><ul><li><code>id</code> — required path parameter, 1–180 characters after trimming.</li></ul><pre>{
   "success": true,
   "data": [
     { "id": "episode-id", "number": 1, "title": "Episode 1", "url": "https://…" }
   ]
-}</pre><p class="muted">Episode title and thumbnail are optional and may be omitted.</p></div>
+}</pre><p class="muted">Episode title and thumbnail are optional and are omitted when the source page does not expose them. This endpoint returns the source site's episode links; it does not claim that every episode has a playable server.</p></div>
 </section>
 <section><h2>Response format</h2><div class="grid"><div class="card"><h3>Successful response</h3><pre>{ "success": true, "data": … }</pre></div><div class="card"><h3>Error response</h3><pre>{
   "success": false,
