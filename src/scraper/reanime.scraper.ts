@@ -103,28 +103,40 @@ export class ReAnimeScraper {
   }
 
   async episodes(id: string): Promise<Episode[]> {
-    // ReAnime's API returns the actual episode list with episode_number and metadata.
-    const endpoint = this.url("/api/v1/anime/" + encodeURIComponent(id) + "/episodes?limit=2000");
-    const raw = await this.transport.json(endpoint);
-    const source = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.episodes) ? raw.episodes : [];
+    const watchUrl = this.url("/watch/" + encodeURIComponent(id));
+    const $ = await this.transport.html(watchUrl);
     const episodes: Episode[] = [];
     const seen = new Set<number>();
-    for (const item of source) {
-      const number = Number(item?.episode_number ?? item?.episodeNumber ?? item?.number ?? item?.num);
-      if (!Number.isFinite(number) || number <= 0 || seen.has(number)) continue;
-      const rawUrl = item?.url ?? item?.watch_url ?? item?.watchUrl;
-      const episodeUrl = absoluteUrl(typeof rawUrl === "string" ? rawUrl : undefined, env.REANIME_BASE_URL);
-      const title = clean(typeof item?.title === "string" ? item.title : item?.title?.english);
-      const thumbnail = absoluteUrl(item?.thumbnail ?? item?.image ?? item?.img, env.REANIME_BASE_URL);
+
+    $('a[href*="/watch/"][href*="ep="], a[href*="?ep="], a[href*="&ep="]').each((_index, element) => {
+      const anchor = $(element);
+      const href = anchor.attr("href");
+      if (!href) return;
+      const absolute = absoluteUrl(href, env.REANIME_BASE_URL);
+      if (!absolute) return;
+      let parsed: URL;
+      try { parsed = new URL(absolute); } catch { return; }
+      if (parsed.hostname !== new URL(env.REANIME_BASE_URL).hostname) return;
+      const number = Number(parsed.searchParams.get("ep"));
+      if (!Number.isSafeInteger(number) || number < 1 || seen.has(number)) return;
+      const rawText = clean(anchor.text() || anchor.attr("title"));
+      const title = clean(rawText.replace(/^\\s*0*\\d+\\s*[.):-]?\\s*/, "").replace(/\\s+(Sub|Dub)(?:\\s+|$)/gi, " "));
+      const thumbnail = absoluteUrl(
+        anchor.find("img").first().attr("data-src")
+        || anchor.find("img").first().attr("data-lazy-src")
+        || anchor.find("img").first().attr("src"),
+        env.REANIME_BASE_URL
+      );
       seen.add(number);
       episodes.push({
-        id: String(item?.id ?? item?.episode_id ?? (id + "-" + number)),
+        id: id + "-" + number,
         number,
-        ...(title ? { title } : {}),
-        url: episodeUrl || this.url("/watch/" + encodeURIComponent(id) + "?ep=" + encodeURIComponent(String(number))),
+        ...(title && title !== rawText ? { title } : {}),
+        url: parsed.toString(),
         ...(thumbnail ? { thumbnail } : {})
       });
-    }
+    });
+
     return episodes.sort((a, b) => a.number - b.number);
   }
 
