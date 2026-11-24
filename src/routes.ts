@@ -112,22 +112,22 @@ export function createRoutes(service: ScraperService): Router {
     try {
       const url = assertAllowedProxyUrl(rawUrl);
       if (!referer.startsWith("https://flixcloud.cc/") && !referer.startsWith("https://reanime.cz/")) throw new Error("Invalid stream referer");
-      const isLikelyPlaylist = url.pathname.toLowerCase().endsWith(".m3u8");
-      const bodyBytes = isLikelyPlaylist ? null : await proxyHttp.getBytes(url.toString(), { referer, accept: "*/*" });
-      const body = isLikelyPlaylist
-        ? await proxyHttp.getText(url.toString(), { referer, accept: "*/*" })
-        : "";
-      const isPlaylist = isLikelyPlaylist || body.trimStart().startsWith("#EXTM3U");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Cache-Control", isPlaylist ? "no-store" : "public, max-age=30");
-      if (isPlaylist) {
+      const likelyPlaylist = url.pathname.toLowerCase().endsWith(".m3u8");
+      if (likelyPlaylist) {
+        const body = await proxyHttp.getText(url.toString(), { referer, accept: "*/*" });
         if (!body.trimStart().startsWith("#EXTM3U")) return res.status(502).json({ success: false, error: { code: "INVALID_PLAYLIST", message: "Upstream did not return HLS playlist data" } });
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Cache-Control", "no-store");
         return res.type("application/vnd.apple.mpegurl").send(rewriteHlsPlaylist(body, url.toString(), publicBase(req) + "/api/v1/proxy/hls", referer));
       }
-      if (url.pathname.endsWith(".ts")) res.type("video/mp2t");
+      const bytes = await proxyHttp.getBytes(url.toString(), { referer, accept: "*/*", ...(typeof req.headers.range === "string" ? { range: req.headers.range } : {}) });
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cache-Control", "public, max-age=30");
+      if (typeof req.headers.range === "string") res.setHeader("Accept-Ranges", "bytes");
+      if (url.pathname.toLowerCase().endsWith(".ts")) res.type("video/mp2t");
       else if (/\.(m4s|mp4)$/i.test(url.pathname)) res.type("video/mp4");
       else res.type("application/octet-stream");
-      return res.send(Buffer.from(bodyBytes || new Uint8Array()));
+      return res.send(Buffer.from(bytes));
     } catch (error) {
       return res.status(502).json({ success: false, error: { code: "HLS_PROXY_FAILED", message: error instanceof Error ? error.message : String(error) } });
     }
