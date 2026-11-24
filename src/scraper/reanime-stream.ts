@@ -59,6 +59,7 @@ export interface ReAnimeStream {
   qualities: { label: string; url: string; bandwidth?: number; resolution?: string }[];
   audioTracks: { lang: string; name?: string; url?: string; default?: boolean }[];
   playlistKey: string | null;
+  selectedAudioLang: string | null;
   intro: unknown;
   outro: unknown;
   thumbnailsVtt: string | null;
