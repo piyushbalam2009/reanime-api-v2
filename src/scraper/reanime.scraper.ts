@@ -24,9 +24,7 @@ function textAfterLabel(text: string, label: string, nextLabels: string[]): stri
 export class ReAnimeScraper {
   private readonly transport: HttpTransport;
 
-  constructor(transport = new HttpTransport()) {
-    this.transport = transport;
-  }
+  constructor(transport = new HttpTransport()) { this.transport = transport; }
 
   private url(path: string): string { return new URL(path, env.REANIME_BASE_URL).toString(); }
 
@@ -34,41 +32,29 @@ export class ReAnimeScraper {
     const results: AnimeSummary[] = [];
     const seen = new Set<string>();
     const baseHost = new URL(env.REANIME_BASE_URL).hostname;
-
     $('a[href^="/anime/"], a[href*="/anime/"]').each((_index, element) => {
       const anchor = $(element);
       const href = anchor.attr("href");
       if (!href) return;
       const url = absoluteUrl(href, env.REANIME_BASE_URL);
       if (!url) return;
-
       let parsedUrl: URL;
       try { parsedUrl = new URL(url); } catch { return; }
       if (parsedUrl.hostname !== baseHost && !parsedUrl.hostname.endsWith("." + baseHost)) return;
-
       const match = parsedUrl.pathname.match(/^\/anime\/([^/]+)\/?$/i);
       if (!match?.[1]) return;
       const id = normalizeId(decodeURIComponent(match[1]));
       if (!id || seen.has(id)) return;
-
       const imageElement = anchor.find("img").first();
-      const image = absoluteUrl(
-        imageElement.attr("data-src") || imageElement.attr("data-lazy-src") || imageElement.attr("src"),
-        env.REANIME_BASE_URL
-      );
+      const image = absoluteUrl(imageElement.attr("data-src") || imageElement.attr("data-lazy-src") || imageElement.attr("src"), env.REANIME_BASE_URL);
       const title = clean(
         anchor.find('h1,h2,h3,h4,[class*="anime-title"],[class*="title"]').first().text()
-        || imageElement.attr("alt")
-        || anchor.attr("title")
+        || imageElement.attr("alt") || anchor.attr("title")
       );
       if (!title || title.length < 2 || /^(watch now|view schedule|home|search)$/i.test(title)) return;
-
-      const cardText = clean(anchor.parent().text());
-      const description = cardText.length > title.length + 20 ? cardText.slice(title.length).trim() : undefined;
       seen.add(id);
-      results.push({ id, title, url: parsedUrl.toString(), ...(image ? { image } : {}), ...(description ? { description } : {}) });
+      results.push({ id, title, url: parsedUrl.toString(), ...(image ? { image } : {}) });
     });
-
     return results;
   }
 
@@ -80,9 +66,8 @@ export class ReAnimeScraper {
   async details(id: string): Promise<AnimeDetails> {
     const url = this.url("/anime/" + encodeURIComponent(id));
     const $ = await this.transport.html(url);
-    const title = clean($("main h1").first().text() || $("h1").first().text());
+    const title = clean($("main h1").first().text() || $("h1").first().text() || $("title").text());
     if (!title || /not found|404/i.test(title)) throw new Error("Anime not found: " + id);
-
     const image = absoluteUrl(
       $("meta[property='og:image']").attr("content")
       || $("main img[alt]").first().attr("src")
@@ -93,7 +78,7 @@ export class ReAnimeScraper {
       $("main [class*='synopsis'], main [class*='description'], main [class*='overview']").first().text()
       || $("meta[name='description']").attr("content")
     );
-    const alternativeTitle = clean($("main h1").first().nextAll("h2,h3").first().text());
+    const alternateTitle = clean($("main h1").first().nextAll("h2,h3").first().text());
     const genres = $("a[href*='/genre/'], a[href*='/genres/']").map((_i, el) => clean($(el).text())).get().filter(Boolean);
     const bodyText = clean($("main").text() || $("body").text());
     const status = textAfterLabel(bodyText, "Status", ["Start Date", "Season", "External Links", "Genres", "Premiered"]);
@@ -101,16 +86,12 @@ export class ReAnimeScraper {
     const score = bodyText.match(/(?:Score|Rating)\s*:?\s*(\d+(?:\.\d+)?)/i)?.[1];
     const episodeCount = bodyText.match(/Episodes\s*:?\s*(\d+)/i)?.[1];
     const premiered = bodyText.match(/Premiered\s*:?\s*(Winter|Spring|Summer|Fall)\s+(\d{4})/i);
-    const year = bodyText.match(/Start Date\s*:?\s*(\d{4})[-./]/i)?.[1]
-      || bodyText.match(/Aired\s*:?\s*(\d{4})/i)?.[1];
-
+    const year = bodyText.match(/Start Date\s*:?\s*(\d{4})[-./]/i)?.[1] || bodyText.match(/Aired\s*:?\s*(\d{4})/i)?.[1];
     return {
-      id,
-      title,
-      url,
+      id, title, url,
       ...(image ? { image } : {}),
       ...(description ? { description } : {}),
-      ...(alternativeTitle && alternativeTitle !== title ? { alternativeTitles: [alternativeTitle] } : {}),
+      ...(alternateTitle && alternateTitle !== title ? { alternativeTitles: [alternateTitle] } : {}),
       ...(genres.length ? { genres: [...new Set(genres)] } : {}),
       ...(status ? { status } : {}),
       ...(format ? { type: format } : {}),
@@ -122,44 +103,28 @@ export class ReAnimeScraper {
   }
 
   async episodes(id: string): Promise<Episode[]> {
-    // Re:ANIME exposes the episode list on its watch page, not on /anime/{slug}.
-    const url = this.url("/watch/" + encodeURIComponent(id));
-    const $ = await this.transport.html(url);
+    // ReAnime's API returns the actual episode list with episode_number and metadata.
+    const endpoint = this.url("/api/v1/anime/" + encodeURIComponent(id) + "/episodes?limit=2000");
+    const raw = await this.transport.json(endpoint);
+    const source = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.episodes) ? raw.episodes : [];
     const episodes: Episode[] = [];
     const seen = new Set<number>();
-
-    $('a[href*="/watch/"][href*="ep="]').each((_index, element) => {
-      const anchor = $(element);
-      const href = anchor.attr("href");
-      if (!href) return;
-      const episodeUrl = absoluteUrl(href, env.REANIME_BASE_URL);
-      if (!episodeUrl) return;
-      let parsed: URL;
-      try { parsed = new URL(episodeUrl); } catch { return; }
-      if (!parsed.pathname.startsWith("/watch/")) return;
-
-      const numberValue = parsed.searchParams.get("ep")
-        || clean(anchor.text()).match(/^\s*(\d+(?:\.\d+)?)[.\s-]/)?.[1];
-      const number = Number(numberValue);
-      if (!Number.isFinite(number) || number <= 0 || seen.has(number)) return;
-
-      const rawTitle = clean(anchor.text());
-      const title = rawTitle.replace(/^\d+(?:\.\d+)?[.\s-]*/, "").replace(/\b(Sub|Dub)\b/gi, "").trim();
-      const imageElement = anchor.find("img").first();
-      const thumbnail = absoluteUrl(
-        imageElement.attr("data-src") || imageElement.attr("data-lazy-src") || imageElement.attr("src"),
-        env.REANIME_BASE_URL
-      );
+    for (const item of source) {
+      const number = Number(item?.episode_number ?? item?.episodeNumber ?? item?.number ?? item?.num);
+      if (!Number.isFinite(number) || number <= 0 || seen.has(number)) continue;
+      const rawUrl = item?.url ?? item?.watch_url ?? item?.watchUrl;
+      const episodeUrl = absoluteUrl(typeof rawUrl === "string" ? rawUrl : undefined, env.REANIME_BASE_URL);
+      const title = clean(typeof item?.title === "string" ? item.title : item?.title?.english);
+      const thumbnail = absoluteUrl(item?.thumbnail ?? item?.image ?? item?.img, env.REANIME_BASE_URL);
       seen.add(number);
       episodes.push({
-        id: id + "-" + String(number),
+        id: String(item?.id ?? item?.episode_id ?? (id + "-" + number)),
         number,
         ...(title ? { title } : {}),
-        url: episodeUrl,
+        url: episodeUrl || this.url("/watch/" + encodeURIComponent(id) + "?ep=" + encodeURIComponent(String(number))),
         ...(thumbnail ? { thumbnail } : {})
       });
-    });
-
+    }
     return episodes.sort((a, b) => a.number - b.number);
   }
 
