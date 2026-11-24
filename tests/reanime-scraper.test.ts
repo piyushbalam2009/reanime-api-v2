@@ -109,7 +109,7 @@ describe("ReAnimeScraper live page layouts", () => {
 });
 
 
-import { parseHlsMaster, rewriteHlsPlaylist } from "../src/scraper/reanime-stream.js";
+import { canonicalReAnimeSlug, parseHlsMaster, rewriteHlsPlaylist } from "../src/scraper/reanime-stream.js";
 
 describe("ReAnime HLS helpers", () => {
   it("parses quality variants, subtitles, and audio tracks from an HLS master", () => {
@@ -136,5 +136,15 @@ segments/0001.ts
     expect(rewritten).toContain("https://api.example/api/v1/proxy/hls?url=");
     expect(rewritten).toContain("pk=cGxheWxpc3RrZXk%3D");
     expect(rewritten).toContain(encodeURIComponent("https://cdn.flixcdn.com/hls/segments/0001.ts"));
+  });
+});
+
+describe("ReAnime canonical server slug", () => {
+  it("removes the catalog episode-count suffix before calling the watch API", () => {
+    expect(canonicalReAnimeSlug("one-piece-xamk74-100")).toBe("one-piece-xamk74");
+  });
+
+  it("keeps canonical slugs without a numeric suffix unchanged", () => {
+    expect(canonicalReAnimeSlug("one-piece-xamk74")).toBe("one-piece-xamk74");
   });
 });
