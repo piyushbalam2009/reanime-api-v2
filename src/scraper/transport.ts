@@ -9,6 +9,10 @@ export class HttpTransport {
     return load(await this.http.getText(url));
   }
 
+  async json<T = unknown>(url: string): Promise<T> {
+    return this.http.getJson<T>(url);
+  }
+
   async close(): Promise<void> {
     // Lifecycle hook retained for graceful service shutdown.
   }
