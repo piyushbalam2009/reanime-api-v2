@@ -23,4 +23,10 @@ export class HttpClient {
       clearTimeout(timeout);
     }
   }
+
+  async getJson<T = unknown>(url: string): Promise<T> {
+    const text = await this.getText(url);
+    try { return JSON.parse(text) as T; }
+    catch { throw new Error(`Upstream returned invalid JSON for ${new URL(url).pathname}`); }
+  }
 }
