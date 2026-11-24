@@ -1,14 +1,14 @@
 # ReAnime API v2
 
-A standalone TypeScript/Node.js scraper project for the public ReAnime website. It exposes a REST API, a reusable TypeScript SDK, a CLI, interactive endpoint documentation, and a browser-based API playground.
+A standalone TypeScript/Node.js **HTTP-only** scraper project for the public ReAnime website. It exposes a REST API, reusable TypeScript SDK, CLI, interactive endpoint documentation, and a browser-based API playground.
 
 ## Architecture
 
-- **HTTP-first scraper:** Fetch public pages with the built-in Node fetch API and parse HTML with Cheerio.
-- **Browser fallback:** Playwright is loaded only when a page explicitly requires browser rendering. No browser is launched for ordinary HTTP requests.
+- **HTTP-only scraper:** Fetch public pages using Node.js native Fetch API with request timeouts and parse HTML using Cheerio.
+- **No browser automation:** Playwright, Chromium, browser rendering, and browser JavaScript execution are not used or installed.
 - **REST API:** Express routes expose normalized JSON responses.
-- **Documentation:** Visit `/docs` for endpoint reference and examples.
-- **Playground:** Visit `/playground` to send requests and inspect JSON responses or copy cURL commands.
+- **Documentation:** Visit /docs for endpoint reference and examples.
+- **Playground:** Visit /playground to send requests and inspect JSON responses or copy cURL commands.
 - **SDK:** Typed client for consuming this API from Node.js/TypeScript applications.
 - **CLI:** Terminal commands for health, search, anime details, and episodes.
 - **Safety:** The scraper does not bypass authentication, paywalls, CAPTCHAs, access controls, or other restrictions. It uses publicly accessible website content only.
@@ -22,31 +22,36 @@ A standalone TypeScript/Node.js scraper project for the public ReAnime website. 
 
 ```bash
 npm install
-npx playwright install chromium
 cp .env.example .env
 npm run dev
 ```
 
-HTTP-only usage does not require installing a browser. Install Chromium for pages which need the browser fallback.
+No browser binaries or browser installation steps are required.
+
+## HTTP fetching and parsing
+
+All scraper requests pass through src/scraper/http-client.ts, which uses the built-in Node.js Fetch API. HTML is parsed by Cheerio in src/scraper/transport.ts. If the upstream website requires client-side JavaScript to render a page, this HTTP-only scraper cannot render that page; it reports the upstream or parsing failure instead of switching to a browser.
+
+Configure HTTP_TIMEOUT_MS to control the maximum duration of each upstream request.
 
 ## Web interfaces
 
-- `/` — redirects to documentation
-- `/docs` — endpoint reference, parameters, response formats, and cURL examples
-- `/playground` — interactive request builder and JSON response viewer
+- / — redirects to documentation
+- /docs — endpoint reference, parameters, response formats, and cURL examples
+- /playground — interactive request builder and JSON response viewer
 
 ## REST API
 
-Base path: `/api/v1`
+Base path: /api/v1
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/health` | API process health |
-| GET | `/api/v1/search?q={query}` | Search anime |
-| GET | `/api/v1/anime/{id}` | Anime details |
-| GET | `/api/v1/anime/{id}/episodes` | Episode list |
+| GET | /health | API process health |
+| GET | /api/v1/search?q={query} | Search anime |
+| GET | /api/v1/anime/{id} | Anime details |
+| GET | /api/v1/anime/{id}/episodes | Episode list |
 
-Search query `q` is required and must contain 1–120 characters. Anime `id` must contain 1–180 characters. Successful responses use `{ "success": true, "data": ... }`. Errors use `{ "success": false, "error": { "code": ..., "message": ... } }`.
+Search query q is required and must contain 1–120 characters. Anime id must contain 1–180 characters. Successful responses use { "success": true, "data": ... }. Errors use { "success": false, "error": { "code": ..., "message": ... } }.
 
 The current API does not expose streaming/server extraction. Website markup and selectors can change; validate live source behavior before relying on scraped data in production.
 
