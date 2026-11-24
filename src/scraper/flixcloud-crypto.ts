@@ -75,7 +75,7 @@ function parseJsLiteral(src: string): any {
         out += String.fromCharCode(parseInt(hex, 16));
         i += 4;
       } else {
-        out += ({ n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '"': '"', "'": "'", '\\': '\\', '/': '/' } as Record<string, string>)[ch ?? ""] ?? ch;
+        out += ({ n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '"': '"', "'": "'", '\\': '\\', '/': '/' } as Record<string, string>)[ch ?? ""] ?? (ch ?? "");
       }
     }
     i++;
@@ -93,7 +93,7 @@ function parseJsLiteral(src: string): any {
     ws();
     if (src[i] === '{') return parseObject();
     if (src[i] === '[') return parseArray();
-    if (src[i] === '"' || src[i] === "'") return parseString(src[i]);
+    if (src[i] === '"' || src[i] === "'") return parseString(src[i]!);
     if (src.startsWith('true', i)) return i += 4, true;
     if (src.startsWith('false', i)) return i += 5, false;
     if (src.startsWith('null', i)) return i += 4, null;
