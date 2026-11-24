@@ -1,104 +1,18 @@
-import axios from 'axios';
-import { webcrypto as crypto } from 'crypto';
-import { cacheGet, cacheSet } from '../utils/cache';
-import { anilistClient } from '../utils/fetch';
 
-const BASE = 'https://reanime.cz';
-const FLIX = 'https://flixcloud.cc';
-const ANIZIP = 'https://api.ani.zip/mappings';
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-const HEADERS = {
-  'User-Agent': UA,
-  Accept: 'application/json, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-};
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 declare const WebAssembly: any;
 
-export interface ReanimeEpisode {
-  num: number;
-  id: string;
-  title: string;
-  titleJapanese?: string | null;
-  titleRomanji?: string | null;
-  image?: string | null;
-  airDate?: string | null;
-  duration?: number | null;
-  filler?: boolean;
-  recap?: boolean;
-  description?: string | null;
-}
 
-export interface ReanimeServer {
-  name: string;
-  sourceId: string;
-  type: 'sub' | 'dub';
-}
 
-export interface ReanimeSubtitle {
-  lang: string;
-  url: string;
-  default?: boolean;
-}
 
-export interface ReanimeQuality {
-  label: string;
-  url: string;
-  bandwidth?: number;
-  resolution?: string;
-}
 
-export interface ReanimeAudioTrack {
-  lang: string;
-  name?: string;
-  url?: string;
-  default?: boolean;
-}
 
-export interface ReanimeStream {
-  embedUrl: string;
-  m3u8: string | null;
-  referer?: string;
-  playlistKey?: string | null;
-  subtitles: ReanimeSubtitle[];
-  audioTracks?: ReanimeAudioTrack[];
-  selectedAudioLang?: string | null;
-  qualities?: ReanimeQuality[];
-  serverName: string;
-  dataType?: string;
-  intro?: any;
-  outro?: any;
-  thumbnailsVtt?: string | null;
-  videoTitle?: string | null;
-  type: 'hls' | 'iframe';
-}
 
-interface ReanimeSeries {
-  animeId: string;
-  title: string;
-  anilistId: number | null;
-  malId: number | null;
-  subbed: number | null;
-  dubbed: number | null;
-  episodesCount: number | null;
-}
 
-interface ReanimeLink {
-  '$id'?: string;
-  serverName?: string;
-  dataType?: string;
-  dataLink?: string;
-}
 
-interface ReanimeEpisodeLookup {
-  anilistId?: number | string | null;
-  malId?: number | string | null;
-  title?: string | null;
-  altTitle?: string | null;
-}
 
 async function sha256hex(input: string | Uint8Array): Promise<string> {
   const bytes = typeof input === 'string' ? enc.encode(input) : input;
@@ -383,3 +297,55 @@ async function runWasmDecrypt(wasmBytes: Uint8Array, frag1: Uint8Array, kf2: Uin
   }
 }
 
+export interface FlixCloudDecrypted {
+  url: string;
+  playlistKey: string | null;
+  subtitles: any[];
+  thumbnails_vtt: string | null;
+  video_title: string | null;
+  intro_chapter: unknown;
+  outro_chapter: unknown;
+}
+
+export async function decryptFlixCloudEmbed(
+  html: string,
+  getJson: (url: string, referer: string) => Promise<any>
+): Promise<FlixCloudDecrypted> {
+  const data = parseJsLiteral(extractSsrObj(html));
+  const seed = data.obfuscation_seed;
+  if (!seed) throw new Error("FlixCloud obfuscation_seed missing");
+  const fields = await deriveFields(seed);
+  const obj = data.obfuscated_crypto_data?.[fields.containerName]?.[fields.arrayName]?.[0]?.[fields.objectName];
+  if (!obj) throw new Error("FlixCloud obfuscated_crypto_data missing");
+  const frag1 = b64toU8(obj[fields.keyField]);
+  const iv = b64toU8(obj[fields.ivField]);
+  const kf2 = b64toU8(data[fields.keyFrag2Field] ?? "");
+  const token = data[fields.tokenField];
+  if (!token) throw new Error("FlixCloud token field missing");
+  const tokenData = await getJson("https://flixcloud.cc/api/m3u8/" + encodeURIComponent(token), "https://reanime.cz/");
+  const vidKey = (await sha256hex(token + "vid")).substring(0, 10);
+  const keyKey = (await sha256hex(token + "key")).substring(0, 10);
+  const encryptedVideo = b64toU8(tokenData[vidKey] ?? "");
+  const tokenBytes = b64toU8(tokenData[keyKey] ?? "");
+  const wasmPayload = b64toU8(data.w_payload ?? "");
+  if (!encryptedVideo.length || !tokenBytes.length || !wasmPayload.length) throw new Error("FlixCloud token or WASM payload missing");
+  const seedInt = parseInt(seed.substring(0, 8), 16);
+  const wasmResult = await runWasmDecrypt(wasmPayload, frag1, kf2, tokenBytes, seedInt);
+  const keyMaterial = await crypto.subtle.importKey("raw", wasmResult.key, { name: "PBKDF2" }, false, ["deriveBits"]);
+  const derived = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", salt: enc.encode(seed), iterations: 1000, hash: "SHA-256" }, keyMaterial, 256));
+  for (let i = 0; i < 32; i++) derived[i] ^= seed.charCodeAt(i % seed.length);
+  const aesKeyBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", derived));
+  const aesKey = await crypto.subtle.importKey("raw", aesKeyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({ name: "AES-CBC", iv }, aesKey, encryptedVideo);
+  const url = dec.decode(plain).trim().replace(/\0+$/, "");
+  if (!url.startsWith("https://")) throw new Error("FlixCloud decrypted value is not an HTTPS URL");
+  return {
+    url,
+    playlistKey: wasmResult.playlistKey ? Buffer.from(wasmResult.playlistKey).toString("base64") : null,
+    subtitles: Array.isArray(data.subtitles) ? data.subtitles : [],
+    thumbnails_vtt: data.thumbnails_vtt ?? null,
+    video_title: data.video_title ?? null,
+    intro_chapter: data.intro_chapter ?? null,
+    outro_chapter: data.outro_chapter ?? null
+  };
+}
