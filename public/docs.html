@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090909">
+<title>ReAnime API v2 — Documentation</title><style>
+:root{color-scheme:dark;--bg:#090909;--panel:#111;--line:#292929;--muted:#a1a1aa;--text:#f5f5f5;--white:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:#fff;text-decoration:underline;text-underline-offset:4px}.wrap{max-width:1120px;margin:auto;padding:34px 24px 80px}
+header{display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line);padding-bottom:22px}
+.brand{font-weight:800;letter-spacing:-.04em;font-size:19px}.nav{display:flex;gap:22px;color:var(--muted)}
+.hero{padding:64px 0 42px;max-width:760px}.eyebrow{text-transform:uppercase;letter-spacing:.16em;color:var(--muted);font-size:11px;font-weight:700}
+h1{font-size:clamp(38px,7vw,66px);line-height:1.02;letter-spacing:-.065em;margin:14px 0 18px}h2{font-size:25px;letter-spacing:-.04em;margin:0 0 12px}h3{font-size:18px;margin:0 0 8px}
+p{color:#c4c4c8}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.card,.endpoint{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin:14px 0}
+.pill{font:11px ui-monospace,monospace;border:1px solid #555;border-radius:5px;padding:3px 7px;color:#fff}
+.path{font:14px ui-monospace,monospace;overflow-wrap:anywhere}.method{font:11px ui-monospace,monospace;background:#f5f5f5;color:#111;border-radius:4px;padding:4px 7px;font-weight:800}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#080808;border:1px solid var(--line);padding:16px;border-radius:9px;color:#e5e5e5;font:12px/1.6 ui-monospace,monospace}
+code{font:13px ui-monospace,monospace;color:#fff}ul{padding-left:20px;color:#c4c4c8}
+footer{border-top:1px solid var(--line);margin-top:50px;padding-top:20px;color:var(--muted);font-size:13px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}.wrap{padding:22px 16px 60px}.hero{padding:44px 0 28px}header{align-items:flex-start;flex-direction:column}}
+</style></head><body><main class="wrap">
+<header><div class="brand">REANIME API <span class="muted">/ v2</span></div><nav class="nav"><a href="/docs">Documentation</a><a href="/playground">Playground</a><a href="https://github.com/piyushbalam2009/reanime-api-v2">GitHub</a></nav></header>
+<section class="hero"><div class="eyebrow">Developer documentation</div><h1>Anime data.<br>One simple API.</h1><p>A lightweight REST interface for searching ReAnime, retrieving anime details, and listing episodes. Explore requests interactively in the API playground.</p><p><a href="/playground">Open API playground →</a></p></section>
+<section><h2>Getting started</h2><div class="card"><p class="muted">Base URL</p><pre>http://localhost:4000</pre><p>When deployed, replace the local URL with your server's public origin. All API routes use the <code>/api/v1</code> prefix. The API currently requires no API key.</p></div></section>
+<section><h2>Endpoints</h2>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/health</span></div><p>Checks whether the API process is responding. This endpoint does not verify that the upstream ReAnime website is healthy.</p><pre>{
+  "success": true,
+  "data": { "status": "ok", "service": "reanime-api-v2" }
+}</pre></div>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/search?q={query}</span></div><p>Searches the source website and returns matching anime summaries.</p><ul><li><code>q</code> — required search text, 1–120 characters after trimming.</li></ul><pre>{
+  "success": true,
+  "data": [
+    { "id": "anime-id", "title": "Anime title", "url": "https://…", "image": "https://…" }
+  ]
+}</pre></div>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/anime/{id}</span></div><p>Returns details for one anime.</p><ul><li><code>id</code> — required path parameter, 1–180 characters after trimming.</li></ul><pre>{
+  "success": true,
+  "data": {
+    "id": "anime-id",
+    "title": "Anime title",
+    "url": "https://…",
+    "description": "…",
+    "image": "https://…",
+    "genres": ["Action", "Adventure"]
+  }
+}</pre><p class="muted">Optional fields are omitted when the scraper cannot find them.</p></div>
+<div class="endpoint"><div><span class="method">GET</span> <span class="path">/api/v1/anime/{id}/episodes</span></div><p>Returns the episode list for an anime, sorted by episode number.</p><ul><li><code>id</code> — required path parameter, 1–180 characters after trimming.</li></ul><pre>{
+  "success": true,
+  "data": [
+    { "id": "episode-id", "number": 1, "title": "Episode 1", "url": "https://…" }
+  ]
+}</pre><p class="muted">Episode title and thumbnail are optional and may be omitted.</p></div>
+</section>
+<section><h2>Response format</h2><div class="grid"><div class="card"><h3>Successful response</h3><pre>{ "success": true, "data": … }</pre></div><div class="card"><h3>Error response</h3><pre>{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Route not found"
+  }
+}</pre></div></div><p>Invalid query or ID input returns HTTP 400. Unknown routes return HTTP 404. Upstream scraping failures return HTTP 502 with an <code>UPSTREAM_ERROR</code> code.</p></section>
+<section><h2>Examples</h2><div class="card"><h3>Search</h3><pre>curl "http://localhost:4000/api/v1/search?q=frieren"</pre><h3>Anime details</h3><pre>curl "http://localhost:4000/api/v1/anime/ANIME_ID"</pre><h3>Episodes</h3><pre>curl "http://localhost:4000/api/v1/anime/ANIME_ID/episodes"</pre></div></section>
+<section><h2>Notes and limitations</h2><ul><li>Responses depend on the current public ReAnime website markup and availability.</li><li>Scraped fields may be absent when the source page does not expose them.</li><li>The API currently exposes search, anime details, and episode listing only. Streaming/server extraction is not part of the current REST surface.</li><li>Use reasonable request rates and follow the source website's terms and access restrictions.</li></ul></section>
+<footer>ReAnime API v2 · <a href="/playground">Try an endpoint</a> · <a href="https://github.com/piyushbalam2009/reanime-api-v2">Source code</a></footer>
+</main></body></html>
