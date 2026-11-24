@@ -53,7 +53,27 @@ Base path: /api/v1
 
 Search query q is required and must contain 1–120 characters. Anime id must contain 1–180 characters. Successful responses use { "success": true, "data": ... }. Errors use { "success": false, "error": { "code": ..., "message": ... } }.
 
-The search endpoint reads Re:ANIME's /search?q= catalog page. Anime details are extracted from /anime/{slug}. Episode lists are extracted from /watch/{slug}, where episode links use the ep query parameter. The API returns source-site data only; it does not invent missing episodes or claim that an episode has a playable server. Streaming/server extraction is not exposed by this API. Website markup and selectors can change, so validate live behavior after deployment.
+Search reads Re:ANIME's /search?q= catalog page. Anime details are extracted from /anime/{slug}, and episode records are read from Re:ANIME's episode JSON API. Streaming uses Re:ANIME's /api/watch/{animeId}/{episode} response to collect FlixCloud embed links, then decrypts the FlixCloud SSR token/WASM payload to obtain the HLS master playlist. The HLS proxy rewrites nested playlists, media segments and URI attributes back through the API. This integration depends on the current upstream FlixCloud embed protocol and allowed CDN hosts.
+
+
+## ReAnime streaming endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/anime/{id}/episodes/{episode}/servers?type=all` | Find ReAnime server links (all/sub/dub) |
+| GET | `/api/v1/stream/reanime/{sourceId}` | Resolve the selected FlixCloud embed to HLS and track metadata |
+| GET | `/api/v1/proxy/hls?url={url}&ref={referer}&pk={playlistKey}` | Proxy playlists and media segments, rewriting nested HLS URIs |
+| GET | `/api/v1/proxy/subtitle?url={url}&ref={referer}` | Proxy subtitle text |
+
+Example flow:
+
+```bash
+curl "http://localhost:4000/api/v1/anime/ANIME_ID/episodes/1/servers?type=sub"
+# Copy a returned sourceId, then:
+curl "http://localhost:4000/api/v1/stream/reanime/SOURCE_ID"
+```
+
+The stream resolver uses only HTTP requests and Node's WebCrypto/WebAssembly support; it does not use Playwright or a browser. HLS proxy URL hosts are restricted to an explicit HTTPS allowlist to prevent arbitrary URL proxying.
 
 ## CLI
 
