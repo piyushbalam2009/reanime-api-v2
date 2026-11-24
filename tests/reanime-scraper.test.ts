@@ -107,3 +107,34 @@ describe("ReAnimeScraper live page layouts", () => {
     expect(result[1]?.url).toContain("?ep=2");
   });
 });
+
+
+import { parseHlsMaster, rewriteHlsPlaylist } from "../src/scraper/reanime-stream.js";
+
+describe("ReAnime HLS helpers", () => {
+  it("parses quality variants, subtitles, and audio tracks from an HLS master", () => {
+    const master = `#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Japanese",LANGUAGE="jpn",DEFAULT=YES,URI="audio/jpn.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",LANGUAGE="eng",URI="subs/eng.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=1800000,RESOLUTION=1280x720
+720/playlist.m3u8
+`;
+    const result = parseHlsMaster(master, "https://cdn.flixcdn.com/master.m3u8");
+    expect(result.qualities[0]?.label).toBe("720p");
+    expect(result.qualities[0]?.url).toBe("https://cdn.flixcdn.com/720/playlist.m3u8");
+    expect(result.subtitles[0]?.lang).toBe("eng");
+    expect(result.audioTracks[0]?.lang).toBe("jpn");
+  });
+
+  it("rewrites variant and segment URIs through the HLS proxy", () => {
+    const playlist = `#EXTM3U
+#EXT-X-KEY:METHOD=AES-128,URI="keys/key.bin"
+#EXTINF:5,
+segments/0001.ts
+`;
+    const rewritten = rewriteHlsPlaylist(playlist, "https://cdn.flixcdn.com/hls/master.m3u8", "https://api.example/api/v1/proxy/hls", "https://flixcloud.cc/", "cGxheWxpc3RrZXk=");
+    expect(rewritten).toContain("https://api.example/api/v1/proxy/hls?url=");
+    expect(rewritten).toContain("pk=cGxheWxpc3RrZXk%3D");
+    expect(rewritten).toContain(encodeURIComponent("https://cdn.flixcdn.com/hls/segments/0001.ts"));
+  });
+});
