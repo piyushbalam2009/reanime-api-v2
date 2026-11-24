@@ -174,7 +174,7 @@ function parseHlsAttributes(line: string): Record<string, string> {
   const body = line.slice(line.indexOf(":") + 1);
   const re = /([A-Z0-9-]+)=("(?:[^"\\\\]|\\\\.)*"|[^,]*)/gi;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(body))) attrs[match[1].toUpperCase()] = match[2].replace(/^"|"$/g, "");
+  while ((match = re.exec(body))) { const key = match[1]; const value = match[2]; if (key && value !== undefined) attrs[key.toUpperCase()] = value.replace(/^"|"$/g, ""); }
   return attrs;
 }
 
@@ -184,7 +184,7 @@ export function parseHlsMaster(master: string, masterUrl: string) {
   const subtitles: ReAnimeStream["subtitles"] = [];
   const audioTracks: ReAnimeStream["audioTracks"] = [];
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = (lines[i] ?? "").trim();
     if (line.startsWith("#EXT-X-MEDIA") && /TYPE=AUDIO/i.test(line)) {
       const attrs = parseHlsAttributes(line);
       audioTracks.push({
@@ -209,7 +209,7 @@ export function parseHlsMaster(master: string, masterUrl: string) {
       qualities.push({
         label: height ? `${height}p` : bandwidth ? `${Math.round(bandwidth / 1000)}kbps` : "Auto",
         url: new URL(uri, masterUrl).toString(),
-        ...(Number.isFinite(bandwidth) ? { bandwidth } : {}),
+        ...(bandwidth !== undefined && Number.isFinite(bandwidth) ? { bandwidth } : {}),
         ...(attrs.RESOLUTION ? { resolution: attrs.RESOLUTION } : {})
       });
     }
