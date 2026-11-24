@@ -8,8 +8,10 @@ export class HttpClient {
       const response = await fetch(url, {
         signal: controller.signal,
         headers: {
-          "user-agent": "ReAnimeAPI/2.0 (+public website metadata client)",
-          "accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8"
+          "user-agent": "Mozilla/5.0 (compatible; ReAnimeAPI/2.0; +https://github.com/piyushbalam2009/reanime-api-v2)",
+          "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "accept-language": "en-US,en;q=0.9",
+          "referer": new URL(url).origin + "/"
         },
         redirect: "follow"
       });
