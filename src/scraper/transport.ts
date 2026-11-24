@@ -9,8 +9,8 @@ export class HttpTransport {
     return load(await this.http.getText(url));
   }
 
-  async json<T = unknown>(url: string): Promise<T> {
-    return this.http.getJson<T>(url);
+  async json<T = unknown>(url: string, headers: Record<string, string> = {}): Promise<T> {
+    return this.http.getJson<T>(url, headers);
   }
 
   async close(): Promise<void> {
