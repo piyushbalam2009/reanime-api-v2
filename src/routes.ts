@@ -20,7 +20,9 @@ function assertAllowedProxyUrl(raw: string): URL {
   const allowed = host === FLIX_HOST || host.endsWith("." + FLIX_HOST)
     || host === "reanime.cz" || host.endsWith(".reanime.cz")
     || host.endsWith(".flixcdn.com") || host.endsWith(".flixcdn.net")
-    || host.endsWith(".cloudfront.net") || host.endsWith(".akamaized.net");
+    || host.endsWith(".cloudfront.net") || host.endsWith(".akamaized.net")
+    || host.endsWith(".flixcloud-cdn.com") || host.endsWith(".flixcdn.cc")
+    || host.endsWith(".cloudflarestream.com") || host.endsWith(".streamtape.com");
   if (url.protocol !== "https:" || !allowed) throw new Error("Proxy URL host is not allowed");
   return url;
 }
