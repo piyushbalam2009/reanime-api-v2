@@ -13,30 +13,68 @@ export class ReAnimeScraper {
 
   private url(path: string): string { return new URL(path, env.REANIME_BASE_URL).toString(); }
 
+  /**
+   * Re:ANIME's catalog uses /anime/{slug} links for actual anime cards.
+   * Do not scan every page link: navigation, language and filter links are
+   * also present and were previously being returned as false anime results.
+   */
   private parseCards($: CheerioAPI): AnimeSummary[] {
     const results: AnimeSummary[] = [];
     const seen = new Set<string>();
-    const baseHost = new URL(env.REANIME_BASE_URL).hostname;
-    $("a[href]").each((_index, element) => {
+
+    $('a[href^="/anime/"], a[href*="/anime/"]').each((_index, element) => {
       const anchor = $(element);
       const href = anchor.attr("href");
-      const title = (anchor.attr("title") || anchor.text()).replace(/\s+/g, " ").trim();
-      if (!href || !title || title.length < 2) return;
+      if (!href) return;
+
       const url = absoluteUrl(href, env.REANIME_BASE_URL);
       if (!url) return;
-      const hostname = new URL(url).hostname;
-      if (hostname !== baseHost && !hostname.endsWith("." + baseHost)) return;
-      const image = absoluteUrl(anchor.find("img").first().attr("data-src") || anchor.find("img").first().attr("src"), env.REANIME_BASE_URL);
-      const id = normalizeId(new URL(url).pathname.split("/").filter(Boolean).at(-1) || "");
-      if (!id || seen.has(id) || !/(anime|watch|series)/i.test(url)) return;
+
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return;
+      }
+
+      const baseHost = new URL(env.REANIME_BASE_URL).hostname;
+      if (parsedUrl.hostname !== baseHost && !parsedUrl.hostname.endsWith("." + baseHost)) return;
+
+      // Only accept a single anime slug after /anime/, not generic /anime pages.
+      const match = parsedUrl.pathname.match(/^\/anime\/([^/]+)\/?$/i);
+      if (!match) return;
+
+      const id = normalizeId(decodeURIComponent(match[1] ?? ""));
+      if (!id || seen.has(id)) return;
+
+      const imageElement = anchor.find("img").first();
+      const image = absoluteUrl(
+        imageElement.attr("data-src") || imageElement.attr("data-lazy-src") || imageElement.attr("src"),
+        env.REANIME_BASE_URL
+      );
+      const title = (
+        anchor.find("h1,h2,h3,h4,[class*='anime-title'],[class*='title']").first().text()
+        || imageElement.attr("alt")
+        || anchor.attr("title")
+        || ""
+      ).replace(/\s+/g, " ").trim();
+
+      // An actual catalog card should have a meaningful title. Ignore
+      // buttons, icon links, empty placeholders and global navigation.
+      if (!title || title.length < 2 || /^(watch now|view schedule|home|search)$/i.test(title)) return;
+
       seen.add(id);
-      results.push({ id, title, url, ...(image ? { image } : {}) });
+      results.push({ id, title, url: parsedUrl.toString(), ...(image ? { image } : {}) });
     });
+
     return results;
   }
 
   async search(query: string): Promise<AnimeSummary[]> {
-    const $ = await this.transport.html(this.url("/?s=" + encodeURIComponent(query)));
+    // The current Re:ANIME catalog search route is /search?q=..., not the
+    // old WordPress-style /?s=... route (which returns the homepage).
+    const url = this.url("/search?q=" + encodeURIComponent(query));
+    const $ = await this.transport.html(url);
     return this.parseCards($);
   }
 
