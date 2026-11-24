@@ -113,12 +113,10 @@ export class ReAnimeStreamResolver {
     const allowedStream = ensureAllowedStreamUrl(direct);
     const playlistKey = decrypted.playlistKey;
     let hls = { qualities: [] as ReAnimeStream["qualities"], subtitles: [] as ReAnimeStream["subtitles"], audioTracks: [] as ReAnimeStream["audioTracks"] };
-    const playlistText = decodeFlixPlaylist(
-      await this.http.getText(allowedStream.toString(), { referer: "https://flixcloud.cc/", accept: "*/*" }),
-      playlistKey
-    );
-    if (!playlistText.trimStart().startsWith("#EXTM3U")) throw new Error("FlixCloud returned an invalid HLS playlist");
-    hls = parseHlsMaster(playlistText, allowedStream.toString());
+    const playlistText = await this.http.getText(allowedStream.toString(), { referer: "https://flixcloud.cc/", accept: "*/*" });
+    const decodedPlaylistText = decodeFlixPlaylist(playlistText, playlistKey);
+    if (!decodedPlaylistText.trimStart().startsWith("#EXTM3U")) throw new Error("FlixCloud returned an invalid HLS playlist");
+    hls = parseHlsMaster(decodedPlaylistText, allowedStream.toString());
     const rawTracks = Array.isArray(decrypted.subtitles) ? decrypted.subtitles : [];
     for (const [index, track] of rawTracks.entries()) {
       const rawTrackUrl = track?.url || track?.file || track?.src;
