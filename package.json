@@ -2,7 +2,7 @@
   "name": "reanime-api-v2",
   "version": "0.1.0",
   "private": false,
-  "description": "Standalone hybrid HTTP and browser-powered ReAnime scraper with REST API, TypeScript SDK, and CLI.",
+  "description": "Standalone HTTP-only ReAnime scraper with REST API, TypeScript SDK, and CLI.",
   "type": "module",
   "engines": { "node": ">=20.11.0" },
   "scripts": {
@@ -30,7 +30,6 @@
     "@types/express": "^5.0.1",
     "@types/node": "^22.13.10",
     "@types/supertest": "^6.0.2",
-    "playwright": "^1.51.1",
     "supertest": "^7.0.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
