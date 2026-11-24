@@ -2,12 +2,12 @@ import type { CheerioAPI } from "cheerio";
 import { env } from "../config/env.js";
 import type { AnimeDetails, AnimeSummary, Episode } from "../types/index.js";
 import { absoluteUrl, normalizeId } from "../utils/url.js";
-import { HybridTransport } from "./transport.js";
+import { HttpTransport } from "./transport.js";
 
 export class ReAnimeScraper {
-  private readonly transport: HybridTransport;
+  private readonly transport: HttpTransport;
 
-  constructor(transport = new HybridTransport()) {
+  constructor(transport = new HttpTransport()) {
     this.transport = transport;
   }
 
@@ -36,8 +36,7 @@ export class ReAnimeScraper {
   }
 
   async search(query: string): Promise<AnimeSummary[]> {
-    const url = this.url("/?s=" + encodeURIComponent(query));
-    const $ = await this.transport.html(url);
+    const $ = await this.transport.html(this.url("/?s=" + encodeURIComponent(query)));
     return this.parseCards($);
   }
 
