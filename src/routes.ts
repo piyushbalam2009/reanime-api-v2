@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { ScraperService } from "./services/scraper.service.js";
 import { HttpClient } from "./scraper/http-client.js";
+import { decodeFlixPlaylist } from "./scraper/flixcloud-playlist.js";
 import { ReAnimeStreamResolver, rewriteHlsPlaylist } from "./scraper/reanime-stream.js";
 
 const resolver = new ReAnimeStreamResolver();
@@ -114,11 +115,13 @@ export function createRoutes(service: ScraperService): Router {
       if (!referer.startsWith("https://flixcloud.cc/") && !referer.startsWith("https://reanime.cz/")) throw new Error("Invalid stream referer");
       const likelyPlaylist = url.pathname.toLowerCase().endsWith(".m3u8");
       if (likelyPlaylist) {
-        const body = await proxyHttp.getText(url.toString(), { referer, accept: "*/*" });
+        const encryptedBody = await proxyHttp.getText(url.toString(), { referer, accept: "*/*" });
+        const playlistKey = typeof req.query.pk === "string" ? req.query.pk : undefined;
+        const body = decodeFlixPlaylist(encryptedBody, playlistKey);
         if (!body.trimStart().startsWith("#EXTM3U")) return res.status(502).json({ success: false, error: { code: "INVALID_PLAYLIST", message: "Upstream did not return HLS playlist data" } });
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Cache-Control", "no-store");
-        return res.type("application/vnd.apple.mpegurl").send(rewriteHlsPlaylist(body, url.toString(), publicBase(req) + "/api/v1/proxy/hls", referer));
+        return res.type("application/vnd.apple.mpegurl").send(rewriteHlsPlaylist(body, url.toString(), publicBase(req) + "/api/v1/proxy/hls", referer, playlistKey));
       }
       const bytes = await proxyHttp.getBytes(url.toString(), { referer, accept: "*/*", ...(typeof req.headers.range === "string" ? { range: req.headers.range } : {}) });
       res.setHeader("Access-Control-Allow-Origin", "*");
