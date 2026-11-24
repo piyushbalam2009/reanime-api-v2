@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { ScraperService } from "./services/scraper.service.js";
+import { HttpClient } from "./scraper/http-client.js";
 import { ReAnimeStreamResolver, rewriteHlsPlaylist } from "./scraper/reanime-stream.js";
 
 const resolver = new ReAnimeStreamResolver();
+const proxyHttp = new HttpClient();
 const FLIX_HOST = "flixcloud.cc";
 
 function publicBase(req: import("express").Request): string {
@@ -110,11 +112,12 @@ export function createRoutes(service: ScraperService): Router {
     try {
       const url = assertAllowedProxyUrl(rawUrl);
       if (!referer.startsWith("https://flixcloud.cc/") && !referer.startsWith("https://reanime.cz/")) throw new Error("Invalid stream referer");
-      const http = new (await import("./scraper/http-client.js")).HttpClient();
-      const body = url.pathname.toLowerCase().endsWith(".m3u8")
-        ? await http.getText(url.toString(), { referer, accept: "*/*" })
-        : new TextDecoder().decode(await http.getBytes(url.toString(), { referer, accept: "*/*" }));
-      const isPlaylist = body.trimStart().startsWith("#EXTM3U") || url.pathname.toLowerCase().endsWith(".m3u8");
+      const isLikelyPlaylist = url.pathname.toLowerCase().endsWith(".m3u8");
+      const bodyBytes = isLikelyPlaylist ? null : await proxyHttp.getBytes(url.toString(), { referer, accept: "*/*" });
+      const body = isLikelyPlaylist
+        ? await proxyHttp.getText(url.toString(), { referer, accept: "*/*" })
+        : "";
+      const isPlaylist = isLikelyPlaylist || body.trimStart().startsWith("#EXTM3U");
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Cache-Control", isPlaylist ? "no-store" : "public, max-age=30");
       if (isPlaylist) {
@@ -124,7 +127,7 @@ export function createRoutes(service: ScraperService): Router {
       if (url.pathname.endsWith(".ts")) res.type("video/mp2t");
       else if (/\.(m4s|mp4)$/i.test(url.pathname)) res.type("video/mp4");
       else res.type("application/octet-stream");
-      return res.send(Buffer.from(await http.getBytes(url.toString(), { referer, accept: "*/*" })));
+      return res.send(Buffer.from(bodyBytes || new Uint8Array()));
     } catch (error) {
       return res.status(502).json({ success: false, error: { code: "HLS_PROXY_FAILED", message: error instanceof Error ? error.message : String(error) } });
     }
@@ -136,8 +139,7 @@ export function createRoutes(service: ScraperService): Router {
     if (!rawUrl) return res.status(400).json({ success: false, error: { code: "MISSING_URL", message: "url is required" } });
     try {
       const url = assertAllowedProxyUrl(rawUrl);
-      const http = new (await import("./scraper/http-client.js")).HttpClient();
-      const text = await http.getText(url.toString(), { referer, accept: "*/*" });
+      const text = await proxyHttp.getText(url.toString(), { referer, accept: "*/*" });
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Cache-Control", "public, max-age=300");
       res.type("text/vtt");
