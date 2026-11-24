@@ -103,11 +103,11 @@ export class ReAnimeStreamResolver {
     const payload = decodeSource(sourceId);
     const embedUrl = ensureAllowedUrl(payload.embedUrl, FLIX_HOSTS).toString();
     const html = await this.http.getText(embedUrl, { referer: `https://${REANIME_HOST}/`, accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "user-agent": UA });
-    // Only accept a provider-exposed direct playlist reference. The dynamic
-    // encrypted SSR/WASM token exchange is intentionally not guessed here.
+    // Accept only direct, provider-exposed HLS URLs. The encrypted SSR/WASM token exchange
+    // used by some FlixCloud embed generations needs a separate versioned implementation.
     const candidates = [
-      ...html.matchAll(/(?:file|source|src|url)\s*[:=]\s*["'](https?:\\?\/\\?\/[^"']+\.m3u8(?:\?[^"']*)?)["']/gi)
-    ].map((m) => String(m[1]).replace(/\\\//g, "/"));
+      ...html.matchAll(/(?:file|source|src|url)\s*[:=]\s*["'](https?:\/\/[^"']+\.m3u8(?:\?[^"']*)?)["']/gi)
+    ].map((m) => String(m[1]));
     const direct = candidates.find((candidate) => {
       try { const u = new URL(candidate); return u.protocol === "https:"; } catch { return false; }
     }) || null;
