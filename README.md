@@ -53,7 +53,7 @@ Base path: /api/v1
 
 Search query q is required and must contain 1–120 characters. Anime id must contain 1–180 characters. Successful responses use { "success": true, "data": ... }. Errors use { "success": false, "error": { "code": ..., "message": ... } }.
 
-The current API does not expose streaming/server extraction. Website markup and selectors can change; validate live source behavior before relying on scraped data in production.
+The search endpoint reads Re:ANIME's /search?q= catalog page. Anime details are extracted from /anime/{slug}. Episode lists are extracted from /watch/{slug}, where episode links use the ep query parameter. The API returns source-site data only; it does not invent missing episodes or claim that an episode has a playable server. Streaming/server extraction is not exposed by this API. Website markup and selectors can change, so validate live behavior after deployment.
 
 ## CLI
 
