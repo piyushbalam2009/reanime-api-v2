@@ -120,7 +120,7 @@ export class ReAnimeScraper {
       const number = Number(parsed.searchParams.get("ep"));
       if (!Number.isSafeInteger(number) || number < 1 || seen.has(number)) return;
       const rawText = clean(anchor.text() || anchor.attr("title"));
-      const title = clean(rawText.replace(/^\\s*0*\\d+\\s*[.):-]?\\s*/, "").replace(/\\s+(Sub|Dub)(?:\\s+|$)/gi, " "));
+      const title = clean(rawText.replace(/^\s*0*\d+\s*[.):-]?\s*/, "").replace(/\s+(Sub|Dub)(?:\s+|$)/gi, " "));
       const thumbnail = absoluteUrl(
         anchor.find("img").first().attr("data-src")
         || anchor.find("img").first().attr("data-lazy-src")
